@@ -12,13 +12,25 @@ from typing import Any, Dict, List, Optional, Set
 from fastapi import HTTPException, Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
-from blackwall.swarms_api_client import SwarmsAgent
 from swarms import BaseTool
+
+from blackwall.swarms_api_client import SwarmsAgent
 
 
 @dataclass
 class ThreatEvent:
-    """Record of a detected threat"""
+    """
+    Record of a detected security threat.
+
+    Attributes:
+        timestamp: ISO format timestamp when the threat was detected
+        ip_address: IP address from which the threat originated
+        threat_type: Type of threat detected (e.g., "SQL Injection", "XSS", "Command Injection")
+        severity: Severity level of the threat. One of: "low", "medium", "high", "critical"
+        payload_sample: Sample of the malicious payload (first 200 characters)
+        action_taken: Action taken in response to the threat (e.g., "Request blocked", "Monitored")
+        details: Additional details about the threat detection
+    """
 
     timestamp: str
     ip_address: str
@@ -31,7 +43,14 @@ class ThreatEvent:
 
 @dataclass
 class RateLimitConfig:
-    """Rate limit configuration"""
+    """
+    Configuration for rate limiting API requests.
+
+    Attributes:
+        requests_per_minute: Maximum number of requests allowed per minute per IP (default: 60)
+        requests_per_hour: Maximum number of requests allowed per hour per IP (default: 1000)
+        burst_limit: Maximum number of requests allowed in a 10-second burst per IP (default: 10)
+    """
 
     requests_per_minute: int = 60
     requests_per_hour: int = 1000
@@ -44,9 +63,25 @@ class RateLimitConfig:
 
 
 class SecurityStateManager:
-    """Manages security state including blocked IPs, rate limits, and threats"""
+    """
+    Manages security state including blocked IPs, rate limits, and threats.
+
+    This class maintains the security state for the Blackwall middleware, including:
+    - Blocked IP addresses and IP ranges
+    - Rate limiting data per IP
+    - Threat event history
+    - Whitelisted IPs
+    - Suspicion scores for IPs
+
+    All state is maintained in memory and is reset when the application restarts.
+    """
 
     def __init__(self):
+        """
+        Initialize the SecurityStateManager.
+
+        Creates empty sets and dictionaries for managing security state.
+        """
         self.blocked_ips: Set[str] = set()
         self.blocked_ip_ranges: List[ipaddress.IPv4Network] = []
         self.rate_limit_data: Dict[str, List[float]] = defaultdict(
@@ -59,7 +94,16 @@ class SecurityStateManager:
         )  # IP -> suspicion score
 
     def is_ip_blocked(self, ip: str) -> bool:
-        """Check if an IP is blocked"""
+        """
+        Check if an IP address is blocked.
+
+        Args:
+            ip: IP address to check (IPv4 or IPv6 string)
+
+        Returns:
+            True if the IP is blocked (either directly or within a blocked range),
+            False otherwise
+        """
         if ip in self.blocked_ips:
             return True
 
@@ -74,7 +118,21 @@ class SecurityStateManager:
         return False
 
     def block_ip(self, ip: str, reason: str = "") -> str:
-        """Block an IP address"""
+        """
+        Block an IP address from accessing the API.
+
+        Args:
+            ip: IP address to block (IPv4 or IPv6 string)
+            reason: Optional reason for blocking the IP
+
+        Returns:
+            Confirmation message indicating the IP was blocked, or an error message
+            if the IP is whitelisted
+
+        Note:
+            Whitelisted IPs cannot be blocked. If attempting to block a whitelisted IP,
+            the operation will be rejected.
+        """
         if ip in self.whitelist_ips:
             return f"Cannot block whitelisted IP: {ip}"
 
@@ -82,7 +140,21 @@ class SecurityStateManager:
         return f"Blocked IP {ip}. Reason: {reason}"
 
     def block_ip_range(self, ip_range: str, reason: str = "") -> str:
-        """Block an IP range (CIDR notation)"""
+        """
+        Block an entire IP range using CIDR notation.
+
+        Args:
+            ip_range: IP range in CIDR notation (e.g., "192.168.1.0/24")
+            reason: Optional reason for blocking the IP range
+
+        Returns:
+            Confirmation message if successful, or an error message if the CIDR
+            notation is invalid
+
+        Example:
+            >>> manager.block_ip_range("192.168.1.0/24", "Malicious network")
+            "Blocked IP range 192.168.1.0/24. Reason: Malicious network"
+        """
         try:
             network = ipaddress.ip_network(ip_range, strict=False)
             self.blocked_ip_ranges.append(network)
@@ -91,14 +163,35 @@ class SecurityStateManager:
             return f"Invalid IP range format: {str(e)}"
 
     def unblock_ip(self, ip: str) -> str:
-        """Unblock an IP address"""
+        """
+        Remove an IP address from the blocklist.
+
+        Args:
+            ip: IP address to unblock
+
+        Returns:
+            Confirmation message if the IP was unblocked, or a message indicating
+            the IP was not in the blocklist
+        """
         if ip in self.blocked_ips:
             self.blocked_ips.remove(ip)
             return f"Unblocked IP {ip}"
         return f"IP {ip} was not blocked"
 
     def whitelist_ip(self, ip: str) -> str:
-        """Add IP to whitelist"""
+        """
+        Add an IP address to the whitelist.
+
+        Whitelisted IPs bypass all security checks including rate limiting
+        and blocking. If the IP is currently blocked, it will be automatically
+        unblocked when whitelisted.
+
+        Args:
+            ip: IP address to whitelist
+
+        Returns:
+            Confirmation message indicating the IP was whitelisted
+        """
         self.whitelist_ips.add(ip)
         if ip in self.blocked_ips:
             self.blocked_ips.remove(ip)
@@ -107,7 +200,26 @@ class SecurityStateManager:
     def check_rate_limit(
         self, ip: str, config: RateLimitConfig
     ) -> tuple[bool, str]:
-        """Check if IP has exceeded rate limits"""
+        """
+        Check if an IP address has exceeded rate limits.
+
+        Checks three types of rate limits:
+        1. Per-minute limit
+        2. Burst limit (10-second window)
+        3. Per-hour limit
+
+        Whitelisted IPs always pass rate limit checks.
+
+        Args:
+            ip: IP address to check
+            config: RateLimitConfig object containing rate limit thresholds
+
+        Returns:
+            Tuple of (allowed: bool, message: str):
+            - If allowed is True, the request is within limits
+            - If allowed is False, the request exceeds limits and message
+              contains details about which limit was exceeded
+        """
         if ip in self.whitelist_ips:
             return True, "Whitelisted"
 
@@ -157,7 +269,22 @@ class SecurityStateManager:
         return True, "OK"
 
     def record_threat(self, event: ThreatEvent):
-        """Record a threat event"""
+        """
+        Record a threat event in the security state.
+
+        This method stores the threat event and updates the suspicion score
+        for the originating IP address based on the threat severity.
+
+        Args:
+            event: ThreatEvent object containing threat details
+
+        Note:
+            Suspicion scores are incremented based on severity:
+            - low: +1
+            - medium: +3
+            - high: +5
+            - critical: +10
+        """
         self.threat_events.append(event)
         # Increase suspicion score
         self.suspicious_ips[
@@ -165,12 +292,32 @@ class SecurityStateManager:
         ] += self._severity_to_score(event.severity)
 
     def _severity_to_score(self, severity: str) -> int:
-        """Convert severity to numeric score"""
+        """
+        Convert threat severity level to a numeric suspicion score.
+
+        Args:
+            severity: Severity level ("low", "medium", "high", or "critical")
+
+        Returns:
+            Numeric score corresponding to the severity level. Returns 1 for
+            unknown severity levels.
+        """
         scores = {"low": 1, "medium": 3, "high": 5, "critical": 10}
         return scores.get(severity, 1)
 
     def get_threat_summary(self) -> str:
-        """Get summary of recent threats"""
+        """
+        Get a summary of recent threat events.
+
+        Returns a formatted string containing:
+        - Total number of threats detected
+        - Number of recent threats (last 50)
+        - Breakdown by severity level
+
+        Returns:
+            Formatted string summary of threat statistics. Returns "No threats detected"
+            if no threats have been recorded.
+        """
         if not self.threat_events:
             return "No threats detected"
 
@@ -207,14 +354,39 @@ CACHE_TTL = 3600  # Cache for 1 hour
 
 
 def get_payload_hash(payload: str) -> str:
-    """Generate a hash for payload caching"""
+    """
+    Generate a SHA-256 hash for payload caching.
+
+    Args:
+        payload: Request payload string to hash
+
+    Returns:
+        Hexadecimal SHA-256 hash of the payload
+
+    Note:
+        Used to create cache keys for agent analysis results to avoid
+        re-analyzing identical payloads.
+    """
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def get_cached_agent_result(
     payload_hash: str,
 ) -> Optional[Dict[str, Any]]:
-    """Get cached agent result if available and not expired"""
+    """
+    Retrieve a cached agent analysis result if available and not expired.
+
+    Args:
+        payload_hash: SHA-256 hash of the payload (from get_payload_hash)
+
+    Returns:
+        Cached result dictionary if available and not expired (within CACHE_TTL),
+        None otherwise
+
+    Note:
+        Cache entries expire after CACHE_TTL seconds (default: 3600 = 1 hour).
+        This helps avoid redundant agent analysis for identical payloads.
+    """
     if payload_hash in agent_cache:
         cached = agent_cache[payload_hash]
         cache_time = cached.get("timestamp", 0)
@@ -224,7 +396,18 @@ def get_cached_agent_result(
 
 
 def cache_agent_result(payload_hash: str, result: Dict[str, Any]):
-    """Cache agent analysis result"""
+    """
+    Cache an agent analysis result for future lookups.
+
+    Args:
+        payload_hash: SHA-256 hash of the payload (from get_payload_hash)
+        result: Agent analysis result dictionary to cache
+
+    Note:
+        The cache automatically maintains a maximum of 1000 entries. When the
+        limit is exceeded, the oldest entries are removed. Each entry includes
+        a timestamp for expiration checking.
+    """
     agent_cache[payload_hash] = {
         "result": result,
         "timestamp": time.time(),
@@ -242,13 +425,35 @@ def cache_agent_result(payload_hash: str, result: Dict[str, Any]):
 
 def analyze_payload_for_threats(payload: str) -> Dict[str, Any]:
     """
-    Analyze a payload for malicious content.
+    Analyze a request payload for malicious content and security threats.
+
+    This function performs pattern-based detection of common web application
+    vulnerabilities including:
+    - SQL Injection
+    - Cross-Site Scripting (XSS)
+    - Command Injection
+    - Path Traversal
+    - XML External Entity (XXE) attacks
+    - Server-Side Request Forgery (SSRF)
+    - Unusually large payloads
 
     Args:
-        payload (str): The request payload as JSON string
+        payload: The request payload as a JSON string or raw string
 
     Returns:
-        dict: Analysis results with threat_detected (bool), threats (list), severity (str)
+        Dictionary containing:
+        - threat_detected (bool): True if any threats were detected
+        - threats (list): List of detected threat descriptions
+        - severity (str): Highest severity level ("low", "medium", "high", "critical")
+        - payload_size (int): Size of the payload in bytes
+        - analysis_timestamp (str): ISO format timestamp of the analysis
+
+    Note:
+        Severity levels are assigned as follows:
+        - "critical": Command injection attempts
+        - "high": SQL injection, XSS, path traversal, XXE
+        - "medium": SSRF patterns, large payloads
+        - "low": Default if no threats detected
     """
     threats = []
     severity = "low"
@@ -368,12 +573,21 @@ def block_ip_address(
     """
     Block an IP address from accessing the API.
 
+    This is a security tool function that can be called by the Blackwall agent
+    to block malicious IP addresses. Once blocked, all requests from this IP
+    will be denied with a 403 Forbidden response.
+
     Args:
-        ip_address (str): The IP address to block
-        reason (str): Reason for blocking
+        ip_address: The IP address to block (IPv4 or IPv6 string)
+        reason: Reason for blocking (default: "Malicious activity detected")
 
     Returns:
-        str: Confirmation message
+        Confirmation message indicating the IP was blocked, or an error message
+        if the IP is whitelisted
+
+    Note:
+        Whitelisted IPs cannot be blocked. This function is typically called
+        by the Blackwall agent when it detects malicious activity.
     """
     return security_state.block_ip(ip_address, reason)
 
@@ -384,12 +598,20 @@ def block_ip_range(
     """
     Block an entire IP range using CIDR notation.
 
+    This function blocks all IP addresses within the specified CIDR range.
+    Useful for blocking entire networks or subnets that are known to be malicious.
+
     Args:
-        ip_range (str): IP range in CIDR notation (e.g., "192.168.1.0/24")
-        reason (str): Reason for blocking
+        ip_range: IP range in CIDR notation (e.g., "192.168.1.0/24", "10.0.0.0/8")
+        reason: Reason for blocking (default: "Malicious network detected")
 
     Returns:
-        str: Confirmation message
+        Confirmation message if successful, or an error message if the CIDR
+        notation is invalid
+
+    Example:
+        >>> block_ip_range("192.168.1.0/24", "Known malicious network")
+        "Blocked IP range 192.168.1.0/24. Reason: Known malicious network"
     """
     return security_state.block_ip_range(ip_range, reason)
 
@@ -398,11 +620,20 @@ def unblock_ip_address(ip_address: str) -> str:
     """
     Remove an IP address from the blocklist.
 
+    This function allows previously blocked IPs to access the API again.
+    Typically used when the agent determines a block was a false positive
+    or when the threat has been resolved.
+
     Args:
-        ip_address (str): The IP address to unblock
+        ip_address: The IP address to unblock
 
     Returns:
-        str: Confirmation message
+        Confirmation message if the IP was unblocked, or a message indicating
+        the IP was not in the blocklist
+
+    Note:
+        This function only removes the IP from the direct blocklist. If the IP
+        is within a blocked IP range, it will still be blocked.
     """
     return security_state.unblock_ip(ip_address)
 
@@ -411,11 +642,23 @@ def whitelist_ip_address(ip_address: str) -> str:
     """
     Add an IP address to the whitelist (bypasses all security checks).
 
+    Whitelisted IPs completely bypass all security checks including:
+    - IP blocking
+    - Rate limiting
+    - Threat analysis
+
+    If the IP is currently blocked, it will be automatically unblocked
+    when whitelisted.
+
     Args:
-        ip_address (str): The IP address to whitelist
+        ip_address: The IP address to whitelist
 
     Returns:
-        str: Confirmation message
+        Confirmation message indicating the IP was whitelisted
+
+    Warning:
+        Use with caution. Whitelisted IPs have unrestricted access to the API.
+        Only whitelist trusted IPs that you are certain are safe.
     """
     return security_state.whitelist_ip(ip_address)
 
@@ -424,14 +667,25 @@ def apply_rate_limit(
     ip_address: str, severity: str = "medium"
 ) -> str:
     """
-    Apply stricter rate limiting to an IP address.
+    Apply stricter rate limiting to an IP address based on severity.
+
+    This function applies different rate limit configurations based on the
+    severity level. Higher severity results in stricter limits.
 
     Args:
-        ip_address (str): The IP address to rate limit
-        severity (str): Severity level (low, medium, high)
+        ip_address: The IP address to apply rate limiting to
+        severity: Severity level determining the strictness of limits.
+                 One of: "low", "medium", "high"
+                 - "high": 10 req/min, 100 req/hour, burst: 3
+                 - "medium": 30 req/min, 500 req/hour, burst: 5
+                 - "low": 60 req/min, 1000 req/hour, burst: 10
 
     Returns:
-        str: Confirmation message
+        Confirmation message with the applied rate limit configuration
+
+    Note:
+        Currently, rate limit configurations are stored in memory. In production,
+        consider using Redis or a similar distributed cache for persistence.
     """
     # Adjust rate limits based on severity
     if severity == "high":
@@ -461,8 +715,23 @@ def get_blocked_ips() -> str:
     """
     Get a list of all currently blocked IP addresses and ranges.
 
+    Returns a JSON-formatted string containing:
+    - blocked_ips: List of directly blocked IP addresses
+    - blocked_ranges: List of blocked IP ranges (CIDR notation)
+    - whitelisted_ips: List of whitelisted IP addresses
+    - total_blocked: Total count of blocked IPs and ranges
+
     Returns:
-        str: JSON string of blocked IPs and ranges
+        JSON-formatted string with blocked IP information
+
+    Example:
+        >>> get_blocked_ips()
+        '{
+          "blocked_ips": ["192.168.1.100"],
+          "blocked_ranges": ["10.0.0.0/8"],
+          "whitelisted_ips": ["127.0.0.1"],
+          "total_blocked": 2
+        }'
     """
     return json.dumps(
         {
@@ -482,8 +751,19 @@ def get_threat_analytics() -> str:
     """
     Get analytics on detected threats and attack patterns.
 
+    Returns a comprehensive summary including:
+    - Total and recent threat counts
+    - Breakdown by severity level
+    - Most suspicious IPs (top 10 by suspicion score)
+    - Recent threat events (last 5)
+
     Returns:
-        str: Analytics summary
+        Formatted string containing threat analytics and statistics
+
+    Note:
+        Suspicion scores are calculated based on threat severity:
+        - Each threat increments the IP's suspicion score
+        - Higher severity threats contribute more to the score
     """
     summary = security_state.get_threat_summary()
 
@@ -511,13 +791,24 @@ def get_threat_analytics() -> str:
 
 def check_ip_reputation(ip_address: str) -> str:
     """
-    Check the reputation status of an IP address.
+    Check the reputation status and history of an IP address.
+
+    Provides a comprehensive report including:
+    - Current status (whitelisted, blocked, or allowed)
+    - Suspicion score (cumulative score based on threat history)
+    - Number of threat events associated with the IP
+    - Recent threat details (last 3 events)
+    - Recent request count (last hour)
 
     Args:
-        ip_address (str): The IP address to check
+        ip_address: The IP address to check
 
     Returns:
-        str: Reputation report
+        Formatted string containing the IP reputation report
+
+    Note:
+        This function is typically called by the Blackwall agent to assess
+        whether an IP should be blocked, unblocked, or rate-limited.
     """
     report = f"Reputation Report for {ip_address}:\n\n"
 
@@ -556,10 +847,21 @@ def check_ip_reputation(ip_address: str) -> str:
 
 def generate_security_report() -> str:
     """
-    Generate a comprehensive security report.
+    Generate a comprehensive security report with statistics and analytics.
+
+    Creates a detailed report including:
+    - Overall statistics (threats, blocked IPs, whitelisted IPs, etc.)
+    - Threat analytics summary
+    - Top threat types by frequency
+    - Most suspicious IPs
 
     Returns:
-        str: Detailed security report
+        Formatted string containing the complete security report
+
+    Note:
+        This function aggregates data from multiple sources to provide
+        a comprehensive view of the security posture. Useful for monitoring
+        and auditing purposes.
     """
     report = "=== BLACKWALL SECURITY REPORT ===\n\n"
     report += f"Generated: {datetime.now().isoformat()}\n\n"
@@ -683,19 +985,45 @@ def create_blackwall_agent(
     """
     Create and configure the Blackwall security agent.
 
+    This function creates a SwarmsAgent instance configured with the Blackwall
+    system prompt and security tools. The agent is designed to analyze API
+    requests, detect threats, and take protective actions.
+
     Args:
-        model_name (str): The model to use for the agent (default: "gpt-4.1")
-                          Note: For better performance, use a model that supports parallel
-                          function calling (e.g., "gpt-4-turbo", "gpt-4o", "claude-3-opus")
-                          to reduce latency when multiple tools are called.
-        selected_tools (List[str]): List of tool names to enable. If None, all tools are enabled.
-                                   Available tools: analyze_payload_for_threats, block_ip_address,
-                                   block_ip_range, unblock_ip_address, whitelist_ip_address,
-                                   apply_rate_limit, get_blocked_ips, get_threat_analytics,
-                                   check_ip_reputation, generate_security_report
+        model_name: The AI model to use for the agent (default: "gpt-4.1").
+                   For better performance, use a model that supports parallel
+                   function calling (e.g., "gpt-4-turbo", "gpt-4o", "claude-3-opus")
+                   to reduce latency when multiple tools are called.
+        selected_tools: List of tool names to enable. If None, all tools are enabled.
+                      Available tools:
+                      - analyze_payload_for_threats: Scan payloads for malicious patterns
+                      - block_ip_address: Block specific IP addresses
+                      - block_ip_range: Block entire IP ranges (CIDR)
+                      - unblock_ip_address: Remove IP from blocklist
+                      - whitelist_ip_address: Add trusted IPs to whitelist
+                      - apply_rate_limit: Apply rate limiting to suspicious IPs
+                      - get_blocked_ips: View current blocklist
+                      - get_threat_analytics: Analyze threat patterns
+                      - check_ip_reputation: Check IP status and history
+                      - generate_security_report: Create comprehensive security reports
 
     Returns:
-        SwarmsAgent: Configured Blackwall agent instance
+        Configured SwarmsAgent instance with:
+        - Blackwall system prompt
+        - Selected security tools
+        - Tools mapping for function execution
+        - Verbose logging enabled
+
+    Note:
+        The agent requires the swarms package to be installed for tool schema
+        conversion. If BaseTool is not available, tools will not be included
+        in the agent configuration.
+
+    Example:
+        >>> agent = create_blackwall_agent(
+        ...     model_name="gpt-4.1",
+        ...     selected_tools=["analyze_payload_for_threats", "block_ip_address"]
+        ... )
     """
     # Convert tools to schemas using BaseTool().function_to_dict()
     tools_list_dictionary = None
@@ -744,6 +1072,7 @@ def create_blackwall_agent(
         verbose=True,
         tool_call_summary=False,
         dynamic_temperature_enabled=True,
+        tools_mapping=AVAILABLE_TOOLS,  # Pass tools mapping for function execution
     )
 
     return agent
@@ -757,6 +1086,39 @@ def create_blackwall_agent(
 class BlackwallMiddleware(BaseHTTPMiddleware):
     """
     FastAPI middleware that integrates Blackwall agent for security monitoring.
+
+    This middleware intercepts all incoming requests and performs security checks
+    including:
+    - IP blocking verification
+    - Rate limiting
+    - Payload threat analysis
+    - Agent-based security analysis (optional)
+
+    The middleware can operate in two modes:
+    1. Standard mode: Agent only runs for low/medium severity threats
+    2. Full analysis mode: Agent analyzes all requests (when run_agent_on_all_requests=True)
+
+    Args:
+        app: FastAPI application instance
+        agent: Pre-initialized SwarmsAgent instance (optional). If not provided,
+              a new agent will be created using the other parameters.
+        model_name: Model name to use for agent (default: "gpt-4.1")
+        selected_tools: List of tool names to enable (None = all tools enabled)
+        run_agent_on_all_requests: If True, agent will analyze all POST/PUT/PATCH
+                                  requests with payloads, regardless of initial
+                                  threat analysis results. If False (default),
+                                  agent only runs for low/medium severity threats.
+
+    Example:
+        >>> from fastapi import FastAPI
+        >>> from blackwall.main import BlackwallMiddleware
+        >>>
+        >>> app = FastAPI()
+        >>> app.add_middleware(
+        ...     BlackwallMiddleware,
+        ...     model_name="gpt-4.1",
+        ...     run_agent_on_all_requests=True
+        ... )
     """
 
     def __init__(
@@ -765,6 +1127,7 @@ class BlackwallMiddleware(BaseHTTPMiddleware):
         agent: SwarmsAgent = None,
         model_name: str = "gpt-4.1",
         selected_tools: List[str] = None,
+        run_agent_on_all_requests: bool = False,
     ):
         super().__init__(app)
         if agent is None:
@@ -773,9 +1136,33 @@ class BlackwallMiddleware(BaseHTTPMiddleware):
             )
         else:
             self.agent = agent
+        self.run_agent_on_all_requests = run_agent_on_all_requests
 
     async def dispatch(self, request: Request, call_next):
-        """Process each request through Blackwall security checks"""
+        """
+        Process each incoming request through Blackwall security checks.
+
+        This method is called by FastAPI for every request and performs the
+        following security checks in order:
+        1. IP blocking verification - checks if the client IP is blocked
+        2. Rate limiting - verifies the request doesn't exceed rate limits
+        3. Payload analysis - analyzes request body for malicious patterns
+        4. Agent analysis - optionally runs the Blackwall agent for deeper analysis
+
+        Args:
+            request: FastAPI Request object containing request details
+            call_next: Callable to proceed to the next middleware/route handler
+
+        Returns:
+            JSONResponse with 403 Forbidden if the request is blocked, or
+            the response from call_next if the request is allowed
+
+        Note:
+            - High/critical severity threats are blocked immediately
+            - Agent analysis runs asynchronously in the background
+            - Agent function call results are processed and logged
+            - All requests get an "X-Blackwall-Protected" header in the response
+        """
 
         # Get client IP
         client_ip = (
@@ -783,13 +1170,18 @@ class BlackwallMiddleware(BaseHTTPMiddleware):
         )
 
         # Check if IP is blocked
-        if security_state.is_ip_blocked(client_ip):
-            return JSONResponse(
-                status_code=403,
-                content={
-                    "detail": "Access denied: IP address is blocked"
-                },
-            )
+        # Note: If run_agent_on_all_requests is True, agent can still analyze and unblock
+        # but the current request will still be blocked (agent runs async)
+        ip_blocked_initially = security_state.is_ip_blocked(client_ip)
+        if ip_blocked_initially:
+            # Still allow agent to run if enabled (for future requests)
+            if not self.run_agent_on_all_requests:
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "detail": "Access denied: IP address is blocked"
+                    },
+                )
 
         # Check rate limiting
         allowed, message = security_state.check_rate_limit(
@@ -829,13 +1221,118 @@ class BlackwallMiddleware(BaseHTTPMiddleware):
             # Replace request's receive function to restore body
             request._receive = receive
 
+            # If IP was blocked initially but agent should run, allow agent to analyze
+            # (agent can unblock for future requests)
+            if (
+                ip_blocked_initially
+                and self.run_agent_on_all_requests
+            ):
+                # Agent will run below and can unblock the IP
+                # But we still need to block this request
+                pass
+
+            # If IP was blocked initially, still block the request but allow agent to analyze
+            # (agent can unblock for future requests)
+            if ip_blocked_initially:
+                # Still allow agent to run if enabled (for future requests)
+                if (
+                    self.run_agent_on_all_requests
+                    and payload
+                    and request.method in ["POST", "PUT", "PATCH"]
+                ):
+                    # Run agent to potentially unblock IP for future requests
+                    payload_hash = get_payload_hash(payload)
+                    analysis_task = f"""
+                    Analyze this API request from a blocked IP address:
+                    
+                    IP Address: {client_ip} (CURRENTLY BLOCKED)
+                    Method: {request.method}
+                    Path: {request.url.path}
+                    Payload: {payload[:1000]}
+                    
+                    This IP was previously blocked. Analyze the request to determine if:
+                    1. The block should remain (threat confirmed)
+                    2. The IP should be unblocked (false positive or legitimate traffic)
+                    3. Additional actions are needed
+                    
+                    Use check_ip_reputation to review the IP's history, then decide on appropriate action.
+                    """
+
+                    async def run_unblock_analysis():
+                        try:
+                            agent_result = await self.agent.arun(
+                                analysis_task
+                            )
+                            # Process results (same as other agent analysis)
+                            if isinstance(agent_result, str):
+                                import json
+
+                                try:
+                                    result_data = json.loads(
+                                        agent_result
+                                    )
+                                except Exception:
+                                    result_data = {
+                                        "raw": agent_result
+                                    }
+                            else:
+                                result_data = agent_result
+
+                            function_calls = result_data.get(
+                                "function_calls", []
+                            )
+                            if function_calls:
+                                for func_call in function_calls:
+                                    func_name = func_call.get(
+                                        "function"
+                                    )
+                                    func_result = func_call.get(
+                                        "result", ""
+                                    )
+                                    if (
+                                        func_name
+                                        == "unblock_ip_address"
+                                        and client_ip in func_result
+                                    ):
+                                        print(
+                                            f"✅ Agent unblocked IP {client_ip}: {func_result}"
+                                        )
+                        except Exception as e:
+                            print(
+                                f"Error in unblock analysis: {str(e)}"
+                            )
+
+                    asyncio.create_task(run_unblock_analysis())
+
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "detail": "Access denied: IP address is blocked"
+                    },
+                )
+
             # Analyze with Blackwall agent for suspicious requests
             # (Only analyze POST/PUT/PATCH with body content)
             if payload and request.method in ["POST", "PUT", "PATCH"]:
                 # First, directly analyze the payload for threats
                 threat_analysis = analyze_payload_for_threats(payload)
 
+                # Determine if agent should run
+                # If run_agent_on_all_requests is True, run agent on all requests
+                # Otherwise, only run for low/medium severity threats
+                should_run_agent = False
+                if self.run_agent_on_all_requests:
+                    should_run_agent = True
+                elif threat_analysis.get(
+                    "threat_detected"
+                ) and threat_analysis.get("severity") in [
+                    "low",
+                    "medium",
+                ]:
+                    should_run_agent = True
+
                 # If high or critical severity threat detected, block immediately
+                # (but still run agent in background if run_agent_on_all_requests is True)
                 if threat_analysis.get(
                     "threat_detected"
                 ) and threat_analysis.get("severity") in [
@@ -866,23 +1363,145 @@ class BlackwallMiddleware(BaseHTTPMiddleware):
                             client_ip, "Critical threat detected"
                         )
 
+                    # If run_agent_on_all_requests is enabled, still run agent for additional analysis
+                    # (agent will run in background even though request is blocked)
+                    if should_run_agent:
+                        # Check cache first
+                        payload_hash = get_payload_hash(payload)
+                        cached_result = get_cached_agent_result(
+                            payload_hash
+                        )
+
+                        if cached_result is None:
+                            # Run agent analysis asynchronously (non-blocking)
+                            analysis_task = f"""
+                            Analyze this API request for security threats:
+                            
+                            IP Address: {client_ip}
+                            Method: {request.method}
+                            Path: {request.url.path}
+                            Payload: {payload[:1000]}  # First 1000 chars
+                            
+                            NOTE: This request has already been blocked due to {threat_analysis.get('severity', 'high')} severity threats.
+                            Use the analyze_payload_for_threats tool and determine if additional action is needed.
+                            Check the IP reputation and consider blocking IP ranges or taking other protective measures.
+                            """
+
+                            # Run agent in background task (non-blocking)
+                            async def run_agent_analysis():
+                                try:
+                                    # Run agent asynchronously
+                                    agent_result = (
+                                        await self.agent.arun(
+                                            analysis_task
+                                        )
+                                    )
+
+                                    # Process agent results to extract function call results
+                                    try:
+                                        if isinstance(
+                                            agent_result, str
+                                        ):
+                                            # Try to parse as JSON if it's a string
+                                            import json
+
+                                            try:
+                                                result_data = (
+                                                    json.loads(
+                                                        agent_result
+                                                    )
+                                                )
+                                            except Exception:
+                                                result_data = {
+                                                    "raw": agent_result
+                                                }
+                                        else:
+                                            result_data = agent_result
+
+                                        # Extract function call results
+                                        function_calls = (
+                                            result_data.get(
+                                                "function_calls", []
+                                            )
+                                        )
+                                        if function_calls:
+                                            for (
+                                                func_call
+                                            ) in function_calls:
+                                                func_name = (
+                                                    func_call.get(
+                                                        "function"
+                                                    )
+                                                )
+                                                func_result = (
+                                                    func_call.get(
+                                                        "result", ""
+                                                    )
+                                                )
+
+                                                if self.agent.verbose:
+                                                    print(
+                                                        f"Agent executed: {func_name}"
+                                                    )
+                                                    print(
+                                                        f"Result: {func_result}"
+                                                    )
+
+                                                # Check if agent unblocked the IP
+                                                if (
+                                                    func_name
+                                                    == "unblock_ip_address"
+                                                    and client_ip
+                                                    in func_result
+                                                ):
+                                                    print(
+                                                        f"✅ Agent unblocked IP {client_ip}: {func_result}"
+                                                    )
+                                                # Check if agent blocked the IP
+                                                elif (
+                                                    func_name
+                                                    == "block_ip_address"
+                                                    and client_ip
+                                                    in func_result
+                                                ):
+                                                    print(
+                                                        f"🛡️ Agent blocked IP {client_ip}: {func_result}"
+                                                    )
+                                    except Exception as parse_error:
+                                        if self.agent.verbose:
+                                            print(
+                                                f"Could not parse agent results: {parse_error}"
+                                            )
+
+                                    # Cache the result
+                                    cache_agent_result(
+                                        payload_hash,
+                                        {
+                                            "status": "analyzed",
+                                            "result": agent_result,
+                                        },
+                                    )
+
+                                    # Check if agent blocked the IP (for future requests)
+                                    if security_state.is_ip_blocked(
+                                        client_ip
+                                    ):
+                                        # IP was blocked by agent, will be caught on next request
+                                        pass
+                                except Exception as e:
+                                    print(
+                                        f"Background agent analysis error: {str(e)}"
+                                    )
+
+                            # Schedule agent analysis in background (fire and forget)
+                            asyncio.create_task(run_agent_analysis())
+
                     return JSONResponse(
                         status_code=403,
                         content={
                             "detail": f"Request blocked: {threat_analysis.get('severity', 'high').upper()} severity threat detected"
                         },
                     )
-
-                # Only run agent for low/medium severity threats or if no threat detected but suspicious
-                # Skip agent analysis for safe requests (no threats detected)
-                should_run_agent = False
-                if threat_analysis.get(
-                    "threat_detected"
-                ) and threat_analysis.get("severity") in [
-                    "low",
-                    "medium",
-                ]:
-                    should_run_agent = True
 
                 if should_run_agent:
                     # Check cache first
@@ -912,6 +1531,74 @@ class BlackwallMiddleware(BaseHTTPMiddleware):
                                 agent_result = await self.agent.arun(
                                     analysis_task
                                 )
+
+                                # Process agent results to extract function call results
+                                try:
+                                    if isinstance(agent_result, str):
+                                        # Try to parse as JSON if it's a string
+                                        import json
+
+                                        try:
+                                            result_data = json.loads(
+                                                agent_result
+                                            )
+                                        except Exception:
+                                            result_data = {
+                                                "raw": agent_result
+                                            }
+                                    else:
+                                        result_data = agent_result
+
+                                    # Extract function call results
+                                    function_calls = result_data.get(
+                                        "function_calls", []
+                                    )
+                                    if function_calls:
+                                        for (
+                                            func_call
+                                        ) in function_calls:
+                                            func_name = func_call.get(
+                                                "function"
+                                            )
+                                            func_result = (
+                                                func_call.get(
+                                                    "result", ""
+                                                )
+                                            )
+
+                                            if self.agent.verbose:
+                                                print(
+                                                    f"Agent executed: {func_name}"
+                                                )
+                                                print(
+                                                    f"Result: {func_result}"
+                                                )
+
+                                            # Check if agent unblocked the IP
+                                            if (
+                                                func_name
+                                                == "unblock_ip_address"
+                                                and client_ip
+                                                in func_result
+                                            ):
+                                                print(
+                                                    f"✅ Agent unblocked IP {client_ip}: {func_result}"
+                                                )
+                                            # Check if agent blocked the IP
+                                            elif (
+                                                func_name
+                                                == "block_ip_address"
+                                                and client_ip
+                                                in func_result
+                                            ):
+                                                print(
+                                                    f"🛡️ Agent blocked IP {client_ip}: {func_result}"
+                                                )
+                                except Exception as parse_error:
+                                    if self.agent.verbose:
+                                        print(
+                                            f"Could not parse agent results: {parse_error}"
+                                        )
 
                                 # Cache the result
                                 cache_agent_result(

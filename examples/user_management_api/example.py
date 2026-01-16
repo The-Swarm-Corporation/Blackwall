@@ -38,6 +38,7 @@ app.add_middleware(
     BlackwallMiddleware,
     model_name="gpt-4.1",  # Change to your preferred model
     selected_tools=None,  # None = all tools enabled, or specify: ["analyze_payload_for_threats", "block_ip_address"]
+    run_agent_on_all_requests=True,  # Agent will analyze every request
 )
 
 # ============================================================================
@@ -48,6 +49,16 @@ app.add_middleware(
 #     selected_tools=["analyze_payload_for_threats", "block_ip_address", "check_ip_reputation"]
 # )
 # app.add_middleware(BlackwallMiddleware, agent=blackwall_agent)
+
+# ============================================================================
+# Option 5: Run agent on all requests (not just low/medium severity threats)
+# ============================================================================
+# app.add_middleware(
+#     BlackwallMiddleware,
+#     model_name="gpt-4.1",
+#     selected_tools=None,
+#     run_agent_on_all_requests=True,  # Agent will analyze every request
+# )
 
 # ============================================================================
 # Example Endpoints

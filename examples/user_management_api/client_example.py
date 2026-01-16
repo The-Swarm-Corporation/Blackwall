@@ -40,6 +40,21 @@ def test_users():
     print("status code: ", out.status_code)
 
 
+def test_command_injection():
+    # Test if agent detects command injection attempts
+    out = requests.post(
+        f"{BASE_URL}/login",
+        json={
+            "username": "admin; rm -rf /",
+            "password": "test || cat /etc/passwd",
+        },
+    )
+
+    print(f"Response: {out.json()}")
+    print(json.dumps(out.json(), indent=4))
+    print("status code: ", out.status_code)
+
+
 def test_legitimate_login():
     # Test legitimate login request (should be allowed)
     out = requests.post(
@@ -69,7 +84,8 @@ def test_legitimate_user():
 
 
 if __name__ == "__main__":
-    test_login()
-    test_users()
+    # test_login()
+    # test_users()
+    # test_command_injection()
     test_legitimate_login()
     test_legitimate_user()

@@ -53,6 +53,8 @@ async def get_data():
 
 ### Environment Setup
 
+**Get your API key**: Obtain your Swarms API key from the [Swarms Dashboard](https://swarms.world/platform/api-keys).
+
 Set your Swarms API key as an environment variable:
 
 ```bash

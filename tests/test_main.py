@@ -1,9 +1,7 @@
 """Tests for blackwall.main module."""
 
-import pytest
 from blackwall.main import (
     create_blackwall_agent,
-    BlackwallMiddleware,
     analyze_payload_for_threats,
 )
 

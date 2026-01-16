@@ -5,7 +5,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "blackwall-gateway"
-version = "1.0.0"
+version = "1.0.1"
 description = "An intelligent API security middleware that monitors, detects, and blocks malicious threats in real-time. Built on the Swarms framework, Blackwall provides comprehensive protection against SQL injection, XSS, command injection, path traversal, SSRF, and other web application vulnerabilities. Features automated IP blocking, rate limiting, threat analytics, and AI-powered decision making for FastAPI applications."
 license = "Apache-2.0"
 authors = ["Kye Gomez <kye@swarms.world>"]
