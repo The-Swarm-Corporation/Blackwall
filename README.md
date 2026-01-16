@@ -3,7 +3,15 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Blackwall** is an enterprise-grade API security middleware for FastAPI applications. It provides real-time threat detection, automated IP blocking, rate limiting, and AI-powered security analysis to protect your APIs from malicious attacks.
+**Blackwall** is an enterprise-grade API security middleware designed to protect FastAPI applications from malicious attacks and unauthorized access. Built on the Swarms AI platform, Blackwall combines rule-based pattern detection with intelligent AI-powered threat analysis to provide comprehensive, real-time security for your API infrastructure.
+
+## Overview
+
+Blackwall acts as a security layer that sits between incoming requests and your FastAPI application endpoints. It automatically analyzes all incoming traffic, detects a wide range of attack patterns including SQL injection, XSS, command injection, and more, then takes immediate protective action by blocking malicious IPs and rate-limiting suspicious activity.
+
+Unlike traditional security solutions that rely solely on static rules, Blackwall leverages AI to make intelligent security decisions, reducing false positives while maintaining high detection accuracy. The middleware integrates seamlessly into existing FastAPI applications with minimal configuration, requiring only a single line of code to enable comprehensive protection.
+
+Key capabilities include automated threat detection, intelligent IP blocking, configurable rate limiting, comprehensive threat analytics, and real-time security monitoring. Blackwall is designed for production environments, with features like request caching, asynchronous processing, and detailed logging to ensure minimal performance impact while providing maximum security coverage.
 
 ## Features
 
@@ -273,7 +281,6 @@ whitelist_ip_address("10.0.0.1")
 blocked = get_blocked_ips()
 print(blocked)
 ```
-
 
 ### Performance Considerations
 

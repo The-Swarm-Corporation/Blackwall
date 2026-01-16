@@ -86,18 +86,22 @@ class SwarmsAPIClient:
         if search_enabled:
             payload["search_enabled"] = search_enabled
 
-        logger.info(f"Making agent completion request to {self.base_url}/v1/agent/completions")
+        logger.info(
+            f"Making agent completion request to {self.base_url}/v1/agent/completions"
+        )
         logger.debug(f"Request payload: {payload}")
 
         response = await self.client.post(
             "/v1/agent/completions", json=payload
         )
         response.raise_for_status()
-        
+
         result = response.json()
-        logger.info(f"Agent completion response received: success={result.get('success')}, job_id={result.get('job_id')}")
+        logger.info(
+            f"Agent completion response received: success={result.get('success')}, job_id={result.get('job_id')}"
+        )
         logger.debug(f"Full response: {result}")
-        
+
         return result
 
     async def agent_completion_sync(
@@ -144,7 +148,9 @@ class SwarmsAPIClient:
         if search_enabled:
             payload["search_enabled"] = search_enabled
 
-        logger.info(f"Making agent completion request (sync) to {self.base_url}/v1/agent/completions")
+        logger.info(
+            f"Making agent completion request (sync) to {self.base_url}/v1/agent/completions"
+        )
         logger.debug(f"Request payload: {payload}")
 
         with httpx.Client(
@@ -155,13 +161,17 @@ class SwarmsAPIClient:
             },
             timeout=60.0,
         ) as client:
-            response = client.post("/v1/agent/completions", json=payload)
+            response = client.post(
+                "/v1/agent/completions", json=payload
+            )
             response.raise_for_status()
-            
+
             result = response.json()
-            logger.info(f"Agent completion response received (sync): success={result.get('success')}, job_id={result.get('job_id')}")
+            logger.info(
+                f"Agent completion response received (sync): success={result.get('success')}, job_id={result.get('job_id')}"
+            )
             logger.debug(f"Full response: {result}")
-            
+
             return result
 
     async def close(self):
@@ -239,7 +249,9 @@ class SwarmsAgent:
         self.dynamic_temperature_enabled = dynamic_temperature_enabled
 
         # Initialize API client
-        self.api_client = SwarmsAPIClient(api_key=api_key, base_url=base_url)
+        self.api_client = SwarmsAPIClient(
+            api_key=api_key, base_url=base_url
+        )
 
     def run(self, task: str) -> str:
         """
@@ -265,11 +277,17 @@ class SwarmsAgent:
 
         # Add tools_list_dictionary if provided
         if self.tools_list_dictionary:
-            agent_config["tools_list_dictionary"] = self.tools_list_dictionary
+            agent_config["tools_list_dictionary"] = (
+                self.tools_list_dictionary
+            )
 
         try:
-            logger.info(f"Running agent '{self.agent_name}' with task: {task[:100]}..." if len(task) > 100 else f"Running agent '{self.agent_name}' with task: {task}")
-            
+            logger.info(
+                f"Running agent '{self.agent_name}' with task: {task[:100]}..."
+                if len(task) > 100
+                else f"Running agent '{self.agent_name}' with task: {task}"
+            )
+
             result = self.api_client.agent_completion_sync(
                 agent_config=agent_config, task=task
             )
@@ -329,11 +347,17 @@ class SwarmsAgent:
 
         # Add tools_list_dictionary if provided
         if self.tools_list_dictionary:
-            agent_config["tools_list_dictionary"] = self.tools_list_dictionary
+            agent_config["tools_list_dictionary"] = (
+                self.tools_list_dictionary
+            )
 
         try:
-            logger.info(f"Running agent '{self.agent_name}' (async) with task: {task[:100]}..." if len(task) > 100 else f"Running agent '{self.agent_name}' (async) with task: {task}")
-            
+            logger.info(
+                f"Running agent '{self.agent_name}' (async) with task: {task[:100]}..."
+                if len(task) > 100
+                else f"Running agent '{self.agent_name}' (async) with task: {task}"
+            )
+
             result = await self.api_client.agent_completion(
                 agent_config=agent_config, task=task
             )
@@ -360,13 +384,17 @@ class SwarmsAgent:
 
         except httpx.HTTPStatusError as e:
             error_msg = f"HTTP error: {e.response.status_code} - {e.response.text}"
-            logger.error(f"HTTP error in agent execution (async): {error_msg}")
+            logger.error(
+                f"HTTP error in agent execution (async): {error_msg}"
+            )
             if self.verbose:
                 print(error_msg)
             return error_msg
         except Exception as e:
             error_msg = f"Error running agent: {str(e)}"
-            logger.exception(f"Exception in agent execution (async): {error_msg}")
+            logger.exception(
+                f"Exception in agent execution (async): {error_msg}"
+            )
             if self.verbose:
                 print(error_msg)
             return error_msg

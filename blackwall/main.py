@@ -15,6 +15,7 @@ from starlette.responses import JSONResponse
 from blackwall.swarms_api_client import SwarmsAgent
 from swarms import BaseTool
 
+
 @dataclass
 class ThreatEvent:
     """Record of a detected threat"""
@@ -716,7 +717,9 @@ def create_blackwall_agent(
                 tool_func = AVAILABLE_TOOLS[tool_name]
                 try:
                     # Convert function to schema using BaseTool
-                    tool_schema = BaseTool().function_to_dict(tool_func)
+                    tool_schema = BaseTool().function_to_dict(
+                        tool_func
+                    )
                     tools_list_dictionary.append(tool_schema)
                 except Exception as e:
                     print(

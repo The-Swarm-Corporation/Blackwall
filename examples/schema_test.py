@@ -1,7 +1,6 @@
 from swarms import BaseTool
 
 
-
 def block_ip_address(ip_address: str) -> str:
     """
     Block an IP address
