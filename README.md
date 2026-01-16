@@ -1,110 +1,249 @@
-# Blackwall Security Agent
+# Blackwall
 
-Blackwall is a comprehensive API security agent designed to protect web applications from malicious threats. Built on the Swarms framework, it provides real-time monitoring, threat detection, and automated response capabilities for API infrastructure.
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Overview
+**Blackwall** is an enterprise-grade API security middleware for FastAPI applications. It provides real-time threat detection, automated IP blocking, rate limiting, and AI-powered security analysis to protect your APIs from malicious attacks.
 
-Blackwall implements an intelligent security layer that analyzes incoming API traffic, detects various types of attacks, and takes appropriate protective measures. The system combines machine learning-powered threat detection with rule-based security policies to provide robust protection against common web application vulnerabilities.
+## Features
 
-## Key Features
-
-### Threat Detection
-
-| Feature                          | Description                                                                                     |
-|-----------------------------------|-------------------------------------------------------------------------------------------------|
-| **SQL Injection**                 | Detects and blocks SQL injection attempts using pattern matching and behavioral analysis         |
-| **Cross-Site Scripting (XSS)**    | Identifies malicious scripts and prevents XSS attacks                                           |
-| **Command Injection**             | Blocks attempts to execute system commands through API endpoints                                |
-| **Path Traversal**                | Prevents directory traversal and file system access attacks                                     |
-| **Server-Side Request Forgery (SSRF)** | Detects and blocks internal network requests                                            |
-| **XML External Entity (XXE)**     | Protects against XML-based attacks                                                              |
-| **IP Blocking**                   | Automatically blocks malicious IP addresses and ranges                                          |
-| **Rate Limiting**                 | Implements configurable rate limiting to prevent abuse                                          |
-| **IP Whitelisting**               | Allows trusted IP addresses to bypass security checks                                           |
-| **Suspicion Scoring**             | Tracks and scores IP addresses based on suspicious behavior                                     |
-
-## Architecture
-
-### Core Components
-
-#### Security Agent (`blackwall_agent_new.py`)
-The main security agent powered by the Swarms framework. It includes:
-- AI-driven threat analysis and decision making
-- Comprehensive tool set for security operations
-- Automated response capabilities
-
-#### Middleware (`BlackwallMiddleware`)
-FastAPI middleware that intercepts all incoming requests and applies security checks before they reach the application endpoints.
-
-#### Security State Manager
-Centralized state management for:
-- Blocked and whitelisted IP addresses
-- Rate limiting data
-- Threat event logs
-- Security configuration
-
-#### Demo API Server (`api.py`)
-A sample FastAPI application demonstrating how to integrate Blackwall protection into existing applications.
+- **Real-time Threat Detection**: Detects SQL injection, XSS, command injection, path traversal, SSRF, and XXE attacks
+- **AI-Powered Analysis**: Uses Swarms API for intelligent threat assessment and decision-making
+- **Automated IP Blocking**: Automatically blocks malicious IP addresses and IP ranges
+- **Rate Limiting**: Configurable rate limiting to prevent abuse and DDoS attacks
+- **Threat Analytics**: Comprehensive threat reporting and IP reputation tracking
+- **Zero Configuration**: Works out of the box with sensible defaults
+- **Production Ready**: Built for high-performance production environments
 
 ## Installation
 
-```bash
-# Install required dependencies
-pip install swarms fastapi uvicorn pydantic loguru
+Install Blackwall using pip:
 
-# Clone or navigate to the project directory
-cd blackwall/
+```bash
+pip install blackwall
+```
+
+Or install from source:
+
+```bash
+git clone https://github.com/your-org/blackwall.git
+cd blackwall
+pip install -e .
 ```
 
 ## Quick Start
 
-### 1. Running the Demo Server
+### Basic Usage
 
-```bash
-# Start the protected API server
-python api.py
-```
-
-The server will start on `http://localhost:8000` with Blackwall protection enabled.
-
-### 2. Basic Usage
+Add Blackwall middleware to your FastAPI application:
 
 ```python
-from blackwall_agent_new import create_blackwall_agent, BlackwallMiddleware
 from fastapi import FastAPI
+from blackwall.main import BlackwallMiddleware
 
-# Create the security agent
-agent = create_blackwall_agent()
-
-# Create your FastAPI application
 app = FastAPI(title="My Protected API")
 
-# Add Blackwall middleware
+# Add Blackwall middleware with default settings
 app.add_middleware(BlackwallMiddleware)
 
-# Your API endpoints will now be protected
 @app.get("/api/data")
-def get_data():
+async def get_data():
     return {"message": "This endpoint is protected by Blackwall"}
 ```
 
-### 3. Testing the Protection
+### Environment Setup
+
+Set your Swarms API key as an environment variable:
 
 ```bash
-# Run the test suite
-python test.py
+export SWARMS_API_KEY="your-api-key-here"
 ```
 
-The test suite includes various attack scenarios to demonstrate Blackwall's detection capabilities.
+Or create a `.env` file:
 
-## Configuration
+```env
+SWARMS_API_KEY=your-api-key-here
+```
+
+## Middleware Configuration
+
+### Default Configuration
+
+The simplest way to use Blackwall is with default settings:
+
+```python
+from fastapi import FastAPI
+from blackwall.main import BlackwallMiddleware
+
+app = FastAPI()
+app.add_middleware(BlackwallMiddleware)
+```
+
+This enables:
+
+- All security tools
+- Default model (`gpt-4.1`)
+- Automatic threat detection
+- IP blocking and rate limiting
+
+### Custom Model Configuration
+
+Specify a different AI model:
+
+```python
+app.add_middleware(
+    BlackwallMiddleware,
+    model_name="gpt-4o"  # or "gpt-4o-mini", "claude-sonnet-4-20250514", etc.
+)
+```
+
+### Selective Tool Configuration
+
+Enable only specific security tools:
+
+```python
+app.add_middleware(
+    BlackwallMiddleware,
+    model_name="gpt-4.1",
+    selected_tools=[
+        "analyze_payload_for_threats",
+        "block_ip_address",
+        "check_ip_reputation"
+    ]
+)
+```
+
+Available tools:
+
+- `analyze_payload_for_threats` - Scan payloads for malicious patterns
+- `block_ip_address` - Block specific IP addresses
+- `block_ip_range` - Block IP ranges (CIDR notation)
+- `unblock_ip_address` - Remove IP from blocklist
+- `whitelist_ip_address` - Add trusted IPs to whitelist
+- `apply_rate_limit` - Apply rate limiting to suspicious IPs
+- `get_blocked_ips` - View current blocklist
+- `get_threat_analytics` - Analyze threat patterns
+- `check_ip_reputation` - Check IP reputation and history
+- `generate_security_report` - Generate comprehensive security reports
+
+### Advanced Configuration
+
+Create a custom agent and pass it to the middleware:
+
+```python
+from blackwall.main import create_blackwall_agent, BlackwallMiddleware
+from fastapi import FastAPI
+
+# Create custom agent with specific configuration
+blackwall_agent = create_blackwall_agent(
+    model_name="gpt-4.1",
+    selected_tools=["analyze_payload_for_threats", "block_ip_address"]
+)
+
+app = FastAPI()
+app.add_middleware(BlackwallMiddleware, agent=blackwall_agent)
+```
+
+## Complete Example
+
+Here's a complete example of a protected FastAPI application:
+
+```python
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from blackwall.main import BlackwallMiddleware
+
+app = FastAPI(
+    title="Protected API",
+    description="API protected by Blackwall security middleware",
+    version="1.0.0"
+)
+
+# Add Blackwall middleware
+app.add_middleware(
+    BlackwallMiddleware,
+    model_name="gpt-4.1",
+    selected_tools=None  # None = all tools enabled
+)
+
+# Request models
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class UserData(BaseModel):
+    name: str
+    email: str
+    bio: str
+
+# Protected endpoints
+@app.get("/")
+async def root():
+    return {
+        "message": "Blackwall Protected API",
+        "status": "active"
+    }
+
+@app.post("/login")
+async def login(credentials: LoginRequest):
+    """Login endpoint - automatically protected by Blackwall"""
+    if credentials.username == "admin" and credentials.password == "password":
+        return {"message": "Login successful", "token": "fake-token"}
+    raise HTTPException(status_code=401, detail="Invalid credentials")
+
+@app.post("/users")
+async def create_user(user: UserData):
+    """Create user endpoint - protected against XSS and injection attacks"""
+    return {
+        "message": "User created",
+        "user": {"name": user.name, "email": user.email}
+    }
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+```
+
+## How It Works
+
+### Request Flow
+
+1. **Request Interception**: Blackwall middleware intercepts all incoming requests
+2. **IP Validation**: Checks if the IP is blocked or whitelisted
+3. **Rate Limiting**: Validates request rate against configured limits
+4. **Threat Analysis**: Analyzes request payloads for malicious patterns
+5. **AI Assessment**: Uses Swarms API for intelligent threat assessment (for suspicious requests)
+6. **Action**: Blocks malicious requests, allows legitimate traffic
+7. **Response**: Adds security headers to all responses
+
+### Threat Detection
+
+Blackwall detects the following attack patterns:
+
+| Threat Type        | Detection Method                    | Response                    |
+|--------------------|-------------------------------------|-----------------------------|
+| SQL Injection      | Pattern matching + AI analysis      | Immediate block             |
+| XSS                | Script tag detection + AI analysis  | Immediate block             |
+| Command Injection  | Command pattern detection           | Immediate block (critical)  |
+| Path Traversal     | Directory traversal patterns        | Block                       |
+| SSRF               | Internal network request detection  | Rate limit or block         |
+| XXE                | XML entity detection                | Block                       |
+
+### Security Headers
+
+Blackwall automatically adds security headers to all responses:
+
+- `X-Blackwall-Protected: true` - Indicates Blackwall is active
+- `X-Request-ID: {ip}-{timestamp}` - Unique request identifier
+
+## Configuration Options
 
 ### Rate Limiting
 
-Configure rate limiting parameters:
+Rate limiting is configured per IP address:
 
 ```python
-from blackwall_agent_new import rate_limit_config
+from blackwall.main import rate_limit_config
 
 # Adjust rate limits
 rate_limit_config.requests_per_minute = 100
@@ -112,89 +251,162 @@ rate_limit_config.requests_per_hour = 2000
 rate_limit_config.burst_limit = 20
 ```
 
-### Security Policies
+### IP Management
 
-Customize threat detection sensitivity and response actions through the agent's system prompt and configuration.
+Manage blocked and whitelisted IPs programmatically:
 
-## API Endpoints
+```python
+from blackwall.main import (
+    block_ip_address,
+    unblock_ip_address,
+    whitelist_ip_address,
+    get_blocked_ips
+)
 
-The demo server provides the following protected endpoints:
+# Block an IP
+block_ip_address("192.168.1.100", reason="Repeated SQL injection attempts")
 
-- `GET /` - Health check
-- `POST /auth/login` - User authentication
-- `GET /api/products` - Product listing
-- `POST /api/products` - Create product
-- `POST /api/search` - Search functionality
-- `GET /admin/security/status` - Security status (requires authentication)
-- `POST /admin/security/block-ip` - Block IP address (admin only)
+# Whitelist a trusted IP
+whitelist_ip_address("10.0.0.1")
 
-## Security Agent Tools
+# Get current blocklist
+blocked = get_blocked_ips()
+print(blocked)
+```
 
-The Blackwall agent provides the following tools for security operations:
+## Production Deployment
 
-- `analyze_payload_for_threats` - Scan request payloads for malicious content
-- `block_ip_address` - Block specific IP addresses
-- `block_ip_range` - Block IP ranges using CIDR notation
-- `unblock_ip_address` - Remove IP addresses from blocklist
-- `whitelist_ip_address` - Add trusted IPs to whitelist
-- `apply_rate_limit` - Apply rate limiting to suspicious IPs
-- `get_blocked_ips` - View current blocklist
-- `get_threat_analytics` - Analyze threat patterns and statistics
-- `check_ip_reputation` - Check IP address reputation and history
-- `generate_security_report` - Create comprehensive security reports
+### Environment Variables
 
-## Threat Response Framework
+```bash
+# Required
+SWARMS_API_KEY=your-api-key-here
 
-Blackwall implements a graduated response system:
+# Optional
+BLACKWALL_LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR
+```
 
-1. **Allow**: Normal traffic with no threats detected
-2. **Monitor**: Suspicious but not clearly malicious activity
-3. **Rate Limit**: Apply restrictions to suspicious IPs
-4. **Block Temporary**: Immediate blocking for clear threats
-5. **Block Permanent**: Permanent banning for severe or repeated offenses
+### Docker Deployment
 
-## Monitoring and Analytics
+```dockerfile
+FROM python:3.11-slim
 
-### Real-time Monitoring
-- Continuous traffic analysis
-- Threat pattern recognition
-- Automated incident response
+WORKDIR /app
 
-### Reporting
-- Comprehensive security reports
-- Threat trend analysis
-- IP reputation tracking
-- Performance metrics
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-## Best Practices
+COPY . .
 
-1. **Deployment**: Deploy Blackwall in front of your API endpoints for maximum protection
-2. **Configuration**: Tune detection sensitivity based on your application's needs
-3. **Monitoring**: Regularly review security reports and threat analytics
-4. **Updates**: Keep threat detection patterns updated with emerging attack vectors
-5. **Testing**: Regularly test your protected endpoints with the provided test suite
+ENV SWARMS_API_KEY=${SWARMS_API_KEY}
 
-## Security Considerations
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+```
 
-- Blackwall provides application-layer protection but should be used with network-level security measures
-- Regularly backup security state and configuration
-- Monitor for false positives and adjust detection rules accordingly
-- Implement proper logging and alerting for security events
+### Performance Considerations
 
-## License
+- **Caching**: Blackwall caches agent analysis results to reduce API calls
+- **Async Processing**: Agent analysis runs asynchronously to minimize latency
+- **Selective Analysis**: Only suspicious requests trigger AI analysis
+- **Direct Blocking**: High-severity threats are blocked immediately without AI analysis
 
-This project is part of the Swarms framework. Please refer to the main project license for usage terms.
+### Monitoring
+
+Blackwall uses `loguru` for logging. Configure log levels:
+
+```python
+from loguru import logger
+
+# Set log level
+logger.remove()
+logger.add("blackwall.log", rotation="10 MB", level="INFO")
+logger.add(lambda msg: print(msg, end=""), level="DEBUG")
+```
+
+## API Reference
+
+### BlackwallMiddleware
+
+FastAPI middleware class that provides security protection.
+
+**Parameters:**
+
+- `agent` (SwarmsAgent, optional): Pre-configured agent instance
+- `model_name` (str, default: "gpt-4.1"): AI model to use
+- `selected_tools` (List[str], optional): List of tool names to enable
+
+### create_blackwall_agent
+
+Factory function to create a Blackwall security agent.
+
+**Parameters:**
+
+- `model_name` (str, default: "gpt-4.1"): AI model to use
+- `selected_tools` (List[str], optional): List of tool names to enable
+
+**Returns:** `SwarmsAgent` instance
+
+## Security Best Practices
+
+1. **API Key Security**: Store `SWARMS_API_KEY` in environment variables, never in code
+2. **Whitelist Management**: Carefully manage whitelisted IPs to avoid bypassing security
+3. **Regular Monitoring**: Review threat analytics regularly to identify attack patterns
+4. **Rate Limit Tuning**: Adjust rate limits based on your application's traffic patterns
+5. **False Positive Handling**: Monitor for false positives and adjust detection rules
+6. **Logging**: Enable comprehensive logging for security auditing
+7. **Backup State**: Regularly backup security state (blocked IPs, etc.)
+
+## Troubleshooting
+
+### Common Issues
+
+**Issue**: `ValueError: API key is required`
+
+**Solution**: Set the `SWARMS_API_KEY` environment variable:
+
+```bash
+export SWARMS_API_KEY="your-key"
+```
+
+**Issue**: High latency on requests
+
+**Solution**:
+
+- Use a faster model (e.g., `gpt-4o-mini`)
+- Reduce the number of enabled tools
+- Check your network connection to `api.swarms.world`
+
+**Issue**: Too many false positives
+
+**Solution**:
+
+- Whitelist trusted IPs
+- Adjust rate limiting thresholds
+- Review and tune detection patterns
 
 ## Contributing
 
-Contributions to Blackwall are welcome. Please ensure that:
+Contributions are welcome! Please ensure that:
+
 - All security features are thoroughly tested
-- Documentation is updated for any new features
-- Code follows established patterns and security best practices
+- Documentation is updated for new features
+- Code follows security best practices
+- Tests pass before submitting PRs
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Support
 
-For issues, questions, or contributions:
-- Review the main Swarms documentation
-- Check the test suite for usage examples
-- Examine the demo API server for integration patterns
+- **Documentation**: [Full Documentation](https://github.com/your-org/blackwall/docs)
+- **Issues**: [GitHub Issues](https://github.com/your-org/blackwall/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/your-org/blackwall/discussions)
+
+## Acknowledgments
+
+Built with [Swarms](https://swarms.world) and [FastAPI](https://fastapi.tiangolo.com/).
+
+---
+
+**Security Notice**: Blackwall provides application-layer protection. For comprehensive security, use it alongside network-level security measures, proper authentication, and regular security audits.
