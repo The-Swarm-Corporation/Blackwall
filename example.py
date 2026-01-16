@@ -2,20 +2,12 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from blackwall.main import BlackwallMiddleware
 
-# ============================================================================
-# Create FastAPI Application
-# ============================================================================
-
 app = FastAPI(
     title="Blackwall Example API",
     description="Simple example showing Blackwall middleware integration",
     version="1.0.0",
 )
 
-
-# ============================================================================
-# Use middleware with custom model and selected tools
-# ============================================================================
 app.add_middleware(
     BlackwallMiddleware,
     model_name="gpt-4.1",  # Change to your preferred model
