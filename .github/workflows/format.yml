@@ -39,7 +39,7 @@ jobs:
 
       - name: Create Pull Request
         if: steps.verify.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "style: auto-format code with Black and Ruff"
