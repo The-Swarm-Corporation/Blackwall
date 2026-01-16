@@ -1,0 +1,8 @@
+fastapi
+starlette
+swarms
+pydantic
+uvicorn
+requests
+loguru
+httpx
