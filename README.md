@@ -274,34 +274,6 @@ blocked = get_blocked_ips()
 print(blocked)
 ```
 
-## Production Deployment
-
-### Environment Variables
-
-```bash
-# Required
-SWARMS_API_KEY=your-api-key-here
-
-# Optional
-BLACKWALL_LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR
-```
-
-### Docker Deployment
-
-```dockerfile
-FROM python:3.11-slim
-
-WORKDIR /app
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY . .
-
-ENV SWARMS_API_KEY=${SWARMS_API_KEY}
-
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
-```
 
 ### Performance Considerations
 
