@@ -28,16 +28,9 @@ Key capabilities include automated threat detection, intelligent IP blocking, co
 Install Blackwall using pip:
 
 ```bash
-pip install blackwall
+pip install blackwall-gateway
 ```
 
-Or install from source:
-
-```bash
-git clone https://github.com/your-org/blackwall.git
-cd blackwall
-pip install -e .
-```
 
 ## Quick Start
 
