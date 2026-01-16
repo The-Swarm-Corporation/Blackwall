@@ -1,7 +1,7 @@
 # Blackwall
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 **Blackwall** is an enterprise-grade API security middleware designed to protect FastAPI applications from malicious attacks and unauthorized access. Built on the Swarms AI platform, Blackwall combines rule-based pattern detection with intelligent AI-powered threat analysis to provide comprehensive, real-time security for your API infrastructure.
 
@@ -30,7 +30,6 @@ Install Blackwall using pip:
 ```bash
 pip install blackwall-gateway
 ```
-
 
 ## Quick Start
 
@@ -367,13 +366,13 @@ Contributions are welcome! Please ensure that:
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+Apache-2.0 License - see [LICENSE](LICENSE) file for details.
 
 ## Support
 
-- **Documentation**: [Full Documentation](https://github.com/your-org/blackwall/docs)
-- **Issues**: [GitHub Issues](https://github.com/your-org/blackwall/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-org/blackwall/discussions)
+- **Documentation**: [Full Documentation](https://github.com/The-Swarm-Corporation/Blackwall)
+- **Issues**: [GitHub Issues](https://github.com/The-Swarm-Corporation/Blackwall/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/The-Swarm-Corporation/Blackwall/discussions)
 
 ## Acknowledgments
 
