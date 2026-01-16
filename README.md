@@ -7,6 +7,32 @@
 
 ## Overview
 
+
+```mermaid
+flowchart TD
+    A[Incoming Request] --> B{IP Blocked?}
+    B -->|Yes| C[403 Forbidden]
+    B -->|No| D{Rate Limit OK?}
+    D -->|No| E[429 Too Many Requests]
+    D -->|Yes| F[Analyze Payload]
+    F --> G{Threat Detected?}
+    G -->|No| H[Allow Request]
+    G -->|Yes| I{Severity?}
+    I -->|Critical/High| J[Block Immediately]
+    I -->|Low/Medium| K[AI Agent Analysis]
+    K --> L{Agent Decision}
+    L -->|Block| M[Block IP]
+    L -->|Allow| H
+    L -->|Rate Limit| N[Apply Rate Limit]
+    H --> O[Add Security Headers]
+    O --> P[Response to Client]
+    J --> P
+    M --> P
+    N --> H
+    E --> P
+    C --> P
+```
+
 Blackwall acts as a security layer that sits between incoming requests and your FastAPI application endpoints. It automatically analyzes all incoming traffic, detects a wide range of attack patterns including SQL injection, XSS, command injection, and more, then takes immediate protective action by blocking malicious IPs and rate-limiting suspicious activity.
 
 Unlike traditional security solutions that rely solely on static rules, Blackwall leverages AI to make intelligent security decisions, reducing false positives while maintaining high detection accuracy. The middleware integrates seamlessly into existing FastAPI applications with minimal configuration, requiring only a single line of code to enable comprehensive protection.
@@ -205,8 +231,6 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
 ```
-
-## How It Works
 
 ### Request Flow
 
